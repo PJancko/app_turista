@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "548125942723",
+    "project_id": "eventosciudadapp",
+    "storage_bucket": "eventosciudadapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:548125942723:android:acd5bedeec26a2b68d5376",
+        "android_client_info": {
+          "package_name": "com.example.app_turista"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoSOuyB7BHAxM78VHXuMZw974OyjSfQps"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

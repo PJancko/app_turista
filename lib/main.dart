@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart'; // ahora lo importas
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 // import 'screens/login_screen.dart'; ← si quieres ir directo al login primero
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // <--- usa esto
+  );
   runApp(const MyApp());
 }
 

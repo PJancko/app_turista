@@ -1,16 +1,29 @@
-# app_turista
-
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+/lib
+ ┣ main.dart                   ← Punto de entrada
+ ┣ /screens                    ← Todas las pantallas principales (UI completas)
+ ┃ ┣ login_screen.dart
+ ┃ ┣ home_screen.dart
+ ┃ ┣ map_screen.dart
+ ┃ ┣ eventos_tab.dart
+ ┃ ┣ lugares_tab.dart
+ ┃ ┗ favoritos_tab.dart
+ ┣ /widgets                    ← Componentes reutilizables (footer, cards, botones, etc.)
+ ┃ ┣ app_footer.dart
+ ┃ ┣ evento_card.dart
+ ┃ ┣ lugar_card.dart
+ ┣ /services                   ← Comunicación con Firebase, API, geolocalización, etc.
+ ┃ ┣ auth_service.dart
+ ┃ ┣ firestore_service.dart
+ ┃ ┗ location_service.dart
+ ┣ /models                     ← Clases de datos: Evento, Lugar, Usuario, etc.
+ ┃ ┣ evento.dart
+ ┃ ┣ lugar.dart
+ ┃ ┣ usuario.dart
+ ┣ /utils                      ← Funciones de utilidad y lógica de recomendación
+ ┃ ┣ recomendador.dart
+ ┣ /themes                     ← Colores, estilos, tipografías
+ ┃ ┣ app_colors.dart
+ ┃ ┣ app_text_styles.dart
+ ┣ /config                     ← Configuración global, rutas, constantes
+ ┃ ┣ app_routes.dart
+ ┃ ┗ constants.dart

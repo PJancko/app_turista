@@ -27,3 +27,9 @@
  ┣ /config                     ← Configuración global, rutas, constantes
  ┃ ┣ app_routes.dart
  ┃ ┗ constants.dart
+
+
+
+## Comandos basicos por si se me olvida 
+flutter run 
+flutter pub get 

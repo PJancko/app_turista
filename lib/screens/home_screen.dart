@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import './login_screen.dart';
+import './admin_screen.dart';
 import './map_screen.dart';
 import '../services/recommendation_service.dart';
 
@@ -18,17 +20,14 @@ class _HomeLayoutState extends State<HomeLayout>
   late TabController _tabController;
   final RecommendationService _recommendationService = RecommendationService();
 
-  
   List<dynamic> _eventosRecomendados = [];
   List<dynamic> _lugaresRecomendados = [];
   List<dynamic> _favoritosData = [];
   bool _isLoading = false;
   Position? _currentPosition;
+  String? _userRole;
 
-  final List<Tab> _tabs = const [
-    Tab(text: 'Eventos'),
-    Tab(text: 'Lugares'),
-  ];
+  final List<Tab> _tabs = const [Tab(text: 'Eventos'), Tab(text: 'Lugares')];
 
   // Colores principales
   final Color _primaryColor = const Color(0xFFD32F2F); // Rojo intenso
@@ -37,95 +36,106 @@ class _HomeLayoutState extends State<HomeLayout>
   final Color _textColor = const Color(0xFF212121); // Negro oscuro
   final Color _lightTextColor = const Color(0xFF757575); // Gris
 
-Widget _buildMapLegend() {
-  return Positioned(
-    top: 20, // Más arriba
-    left: 24,
-    right: 20,
-    child: Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildLegendItem(
-              color: Colors.blue,
-              icon: Icons.place,
-              title: 'Eventos',
-              subtitle: 'Actividades y\ncelebraciones',
-            ),
-            _buildLegendItem(
-              color: Colors.yellow[700]!,
-              icon: Icons.place,
-              title: 'Lugares',
-              subtitle: 'Sitios turísticos\ny puntos clave',
-            ),
-            _buildLegendItem(
-              color: const Color.fromARGB(255, 224, 49, 204),
-              icon: Icons.place,
-              title: 'Recomendados',
-              subtitle: 'Según tus\npreferencias',
-            ),
-          ],
+  Widget _buildMapLegend() {
+    return Positioned(
+      top: 20, // Más arriba
+      left: 24,
+      right: 20,
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildLegendItem(
+                color: Colors.blue,
+                icon: Icons.place,
+                title: 'Eventos',
+                subtitle: 'Actividades y\ncelebraciones',
+              ),
+              _buildLegendItem(
+                color: Colors.yellow[700]!,
+                icon: Icons.place,
+                title: 'Lugares',
+                subtitle: 'Sitios turísticos\ny puntos clave',
+              ),
+              _buildLegendItem(
+                color: const Color.fromARGB(255, 224, 49, 204),
+                icon: Icons.place,
+                title: 'Recomendados',
+                subtitle: 'Según tus\npreferencias',
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-Widget _buildLegendItem({
-  required Color color,
-  required IconData icon,
-  required String title,
-  required String subtitle,
-}) {
-  return Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      CircleAvatar(
-        backgroundColor: color,
-        radius: 12, // Más pequeño
-        child: Icon(icon, size: 14, color: Colors.white),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        title,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: _textColor,
+  Widget _buildLegendItem({
+    required Color color,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircleAvatar(
+          backgroundColor: color,
+          radius: 12, // Más pequeño
+          child: Icon(icon, size: 14, color: Colors.white),
         ),
-        textAlign: TextAlign.center,
-      ),
-      Text(
-        subtitle,
-        style: TextStyle(
-          fontSize: 9,
-          color: _lightTextColor,
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: _textColor,
+          ),
+          textAlign: TextAlign.center,
         ),
-        textAlign: TextAlign.center,
-        maxLines: 2,
-      ),
-    ],
-  );
-}
-
+        Text(
+          subtitle,
+          style: TextStyle(fontSize: 9, color: _lightTextColor),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+        ),
+      ],
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
     _getCurrentLocation();
+    _loadUserRole();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUserRole() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(user.uid)
+              .get();
+      if (doc.exists) {
+        setState(() {
+          _userRole = doc['rol'] ?? 'usuario';
+        });
+      }
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -200,7 +210,8 @@ Widget _buildLegendItem({
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
             blurRadius: 8,
-            offset: const Offset(0, 2))
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: TextField(
@@ -223,59 +234,61 @@ Widget _buildLegendItem({
     );
   }
 
-Future<void> _searchItems(String query) async {
-  if (query.isEmpty) {
-    // Si no hay búsqueda, vuelve a cargar las recomendaciones
-    await _loadRecommendations();
-    return;
-  }
+  Future<void> _searchItems(String query) async {
+    if (query.isEmpty) {
+      // Si no hay búsqueda, vuelve a cargar las recomendaciones
+      await _loadRecommendations();
+      return;
+    }
 
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  try {
-    final resultados = await _recommendationService.searchItems(query);
+    try {
+      final resultados = await _recommendationService.searchItems(query);
 
       setState(() {
-        _eventosRecomendados = resultados
-            .where((r) => r['type'] == 'evento')
-            .map((r) => _normalizarRecommendation(r))
-            .toList();
+        _eventosRecomendados =
+            resultados
+                .where((r) => r['type'] == 'evento')
+                .map((r) => _normalizarRecommendation(r))
+                .toList();
 
-        _lugaresRecomendados = resultados
-            .where((r) => r['type'] == 'lugar')
-            .map((r) => _normalizarRecommendation(r))
-            .toList();
+        _lugaresRecomendados =
+            resultados
+                .where((r) => r['type'] == 'lugar')
+                .map((r) => _normalizarRecommendation(r))
+                .toList();
       });
-  } catch (e) {
-    print('Error al buscar items: $e');
-  } finally {
-    setState(() => _isLoading = false);
-  }
-}
-
-    Map<String, dynamic> _normalizarRecommendation(Map<String, dynamic> r) {
-      final item = r['item'];
-
-      if (item is Map && item.containsKey('nombre')) {
-        return r;
-      }
-
-      // Caso de emergencia: si item es un String o no tiene 'nombre'
-      return {
-        ...r,
-        'item': {
-          'nombre': '[Sin nombre]',
-          // Agrega más campos si quieres
-        }
-      };
+    } catch (e) {
+      print('Error al buscar items: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
-    
+  }
+
+  Map<String, dynamic> _normalizarRecommendation(Map<String, dynamic> r) {
+    final item = r['item'];
+
+    if (item is Map && item.containsKey('nombre')) {
+      return r;
+    }
+
+    // Caso de emergencia: si item es un String o no tiene 'nombre'
+    return {
+      ...r,
+      'item': {
+        'nombre': '[Sin nombre]',
+        // Agrega más campos si quieres
+      },
+    };
+  }
 
   Widget _buildRecommendationCard(Map<String, dynamic> recommendation) {
-    final nombre = (recommendation['item'] is Map)
-    ? recommendation['item']['nombre']
-    : recommendation['item']?.nombre;
-  final double force = recommendation['force'];
+    final nombre =
+        (recommendation['item'] is Map)
+            ? recommendation['item']['nombre']
+            : recommendation['item']?.nombre;
+    final double force = recommendation['force'];
     final bool isAttractive = recommendation['isAttractive'] ?? false;
     final double itemCharge = recommendation['itemCharge'] ?? 1.0;
     final double userCharge = recommendation['userCharge'] ?? 1.0;
@@ -291,9 +304,8 @@ Future<void> _searchItems(String query) async {
             : _calculateNormalScale(force);
 
     // Colores basados en el tipo
-    final Color typeColor = recommendation['type'] == 'evento'
-        ? _primaryColor
-        : Colors.green[700]!;
+    final Color typeColor =
+        recommendation['type'] == 'evento' ? _primaryColor : Colors.green[700]!;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -307,15 +319,20 @@ Future<void> _searchItems(String query) async {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                  color: isAttractive
-                      ? typeColor.withOpacity(0.3)
-                      : Colors.transparent,
-                  width: 1.5),
+                color:
+                    isAttractive
+                        ? typeColor.withOpacity(0.3)
+                        : Colors.transparent,
+                width: 1.5,
+              ),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => _showItemDetails(
-                  recommendation['item'], recommendation['type']),
+              onTap:
+                  () => _showItemDetails(
+                    recommendation['item'],
+                    recommendation['type'],
+                  ),
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Row(
@@ -327,15 +344,16 @@ Future<void> _searchItems(String query) async {
                       decoration: BoxDecoration(
                         color: typeColor.withOpacity(isAttractive ? 0.9 : 0.7),
                         borderRadius: BorderRadius.circular(10),
-                        boxShadow: isAttractive
-                            ? [
-                                BoxShadow(
-                                  color: typeColor.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  spreadRadius: 1,
-                                )
-                              ]
-                            : null,
+                        boxShadow:
+                            isAttractive
+                                ? [
+                                  BoxShadow(
+                                    color: typeColor.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                                : null,
                       ),
                       child: Icon(
                         recommendation['type'] == 'evento'
@@ -354,9 +372,10 @@ Future<void> _searchItems(String query) async {
                             nombre,
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: isAttractive
-                                  ? FontWeight.bold
-                                  : FontWeight.w600,
+                              fontWeight:
+                                  isAttractive
+                                      ? FontWeight.bold
+                                      : FontWeight.w600,
                               color: _textColor,
                             ),
                             maxLines: 1,
@@ -365,27 +384,36 @@ Future<void> _searchItems(String query) async {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.linear_scale,
-                                  size: 16, color: typeColor),
+                              Icon(
+                                Icons.linear_scale,
+                                size: 16,
+                                color: typeColor,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 'Fuerza: ${force.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: typeColor,
-                                  fontWeight: isAttractive
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
+                                  fontWeight:
+                                      isAttractive
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
                                 ),
                               ),
                               const Spacer(),
-                              Icon(Icons.directions_walk,
-                                  size: 16, color: _lightTextColor),
+                              Icon(
+                                Icons.directions_walk,
+                                size: 16,
+                                color: _lightTextColor,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 '${recommendation['distance'].toStringAsFixed(1)} km',
                                 style: TextStyle(
-                                    fontSize: 13, color: _lightTextColor),
+                                  fontSize: 13,
+                                  color: _lightTextColor,
+                                ),
                               ),
                             ],
                           ),
@@ -394,8 +422,11 @@ Future<void> _searchItems(String query) async {
                               padding: const EdgeInsets.only(top: 4),
                               child: Row(
                                 children: [
-                                  Icon(Icons.star,
-                                      size: 16, color: Colors.amber[700]),
+                                  Icon(
+                                    Icons.star,
+                                    size: 16,
+                                    color: Colors.amber[700],
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     '${itemCharge.toStringAsFixed(1)}',
@@ -412,12 +443,16 @@ Future<void> _searchItems(String query) async {
                             Container(
                               margin: const EdgeInsets.only(top: 6),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: typeColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                    color: typeColor.withOpacity(0.2), width: 1),
+                                  color: typeColor.withOpacity(0.2),
+                                  width: 1,
+                                ),
                               ),
                               child: Text(
                                 '¡Recomendado para ti!',
@@ -431,10 +466,7 @@ Future<void> _searchItems(String query) async {
                         ],
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: _lightTextColor,
-                    ),
+                    Icon(Icons.chevron_right, color: _lightTextColor),
                   ],
                 ),
               ),
@@ -468,91 +500,92 @@ Future<void> _searchItems(String query) async {
   void _showItemDetails(dynamic item, String type) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 0,
-        backgroundColor: _secondaryColor,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.nombre,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _primaryColor,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                item.descripcion,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: _textColor,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (type == 'evento')
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today,
-                        size: 18, color: _primaryColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Fecha: ${item.fecha.toString().split(' ')[0]}',
-                      style: TextStyle(color: _textColor),
-                    ),
-                  ],
-                ),
-              if (type == 'lugar')
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 18, color: _primaryColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Horario: ${item.horario}',
-                      style: TextStyle(color: _textColor),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+            backgroundColor: _secondaryColor,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _lightTextColor,
+                  Text(
+                    item.nombre,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor,
                     ),
-                    child: const Text('Cerrar'),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      setState(() {
-                        _bottomIndex = 1;
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                  const SizedBox(height: 12),
+                  Text(
+                    item.descripcion,
+                    style: TextStyle(fontSize: 15, color: _textColor),
+                  ),
+                  const SizedBox(height: 12),
+                  if (type == 'evento')
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 18,
+                          color: _primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Fecha: ${item.fecha.toString().split(' ')[0]}',
+                          style: TextStyle(color: _textColor),
+                        ),
+                      ],
                     ),
-                    child: const Text('Ver en mapa'),
+                  if (type == 'lugar')
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 18, color: _primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Horario: ${item.horario}',
+                          style: TextStyle(color: _textColor),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: _lightTextColor,
+                        ),
+                        child: const Text('Cerrar'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          setState(() {
+                            _bottomIndex = 1;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Ver en mapa'),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -584,23 +617,25 @@ Future<void> _searchItems(String query) async {
           ),
         ),
         Expanded(
-          child: _isLoading
-              ? Center(
-                  child: CircularProgressIndicator(
-                    color: _primaryColor,
-                  ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    // Tab de Eventos
-                    _eventosRecomendados.isEmpty
-                        ? Center(
+          child:
+              _isLoading
+                  ? Center(
+                    child: CircularProgressIndicator(color: _primaryColor),
+                  )
+                  : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // Tab de Eventos
+                      _eventosRecomendados.isEmpty
+                          ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.event,
-                                    size: 50, color: _lightTextColor),
+                                Icon(
+                                  Icons.event,
+                                  size: 50,
+                                  color: _lightTextColor,
+                                ),
                                 const SizedBox(height: 16),
                                 Text(
                                   'No hay eventos recomendados',
@@ -609,21 +644,25 @@ Future<void> _searchItems(String query) async {
                               ],
                             ),
                           )
-                        : ListView.builder(
+                          : ListView.builder(
                             padding: const EdgeInsets.only(top: 8),
                             itemCount: _eventosRecomendados.length,
-                            itemBuilder: (context, index) =>
-                                _buildRecommendationCard(
-                                    _eventosRecomendados[index]),
+                            itemBuilder:
+                                (context, index) => _buildRecommendationCard(
+                                  _eventosRecomendados[index],
+                                ),
                           ),
-                    // Tab de Lugares
-                    _lugaresRecomendados.isEmpty
-                        ? Center(
+                      // Tab de Lugares
+                      _lugaresRecomendados.isEmpty
+                          ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.place,
-                                    size: 50, color: _lightTextColor),
+                                Icon(
+                                  Icons.place,
+                                  size: 50,
+                                  color: _lightTextColor,
+                                ),
                                 const SizedBox(height: 16),
                                 Text(
                                   'No hay lugares recomendados',
@@ -632,22 +671,23 @@ Future<void> _searchItems(String query) async {
                               ],
                             ),
                           )
-                        : ListView.builder(
+                          : ListView.builder(
                             padding: const EdgeInsets.only(top: 8),
                             itemCount: _lugaresRecomendados.length,
-                            itemBuilder: (context, index) =>
-                                _buildRecommendationCard(
-                                    _lugaresRecomendados[index]),
+                            itemBuilder:
+                                (context, index) => _buildRecommendationCard(
+                                  _lugaresRecomendados[index],
+                                ),
                           ),
-                    // Eliminado el tercer Tab (Favoritos)
-                  ],
-                ),
+                      // Eliminado el tercer Tab (Favoritos)
+                    ],
+                  ),
         ),
       ],
     );
   }
 
-Widget _getCurrentPage() {
+  Widget _getCurrentPage() {
     final isLoggedIn = FirebaseAuth.instance.currentUser != null;
 
     switch (_bottomIndex) {
@@ -664,6 +704,8 @@ Widget _getCurrentPage() {
         );
       case 2:
         return isLoggedIn ? _buildPerfilScreen() : const LoginScreen();
+      case 3:
+        return const AdminScreen();
       default:
         return const Center(child: Text('Inicio'));
     }
@@ -685,11 +727,7 @@ Widget _getCurrentPage() {
                 color: _primaryColor.withOpacity(0.1),
                 border: Border.all(color: _primaryColor, width: 2),
               ),
-              child: Icon(
-                Icons.person,
-                size: 60,
-                color: _primaryColor,
-              ),
+              child: Icon(Icons.person, size: 60, color: _primaryColor),
             ),
             const SizedBox(height: 24),
             Text(
@@ -711,12 +749,18 @@ Widget _getCurrentPage() {
                 child: Column(
                   children: [
                     _buildProfileInfoRow(
-                        Icons.email, 'Correo', user?.email ?? 'Desconocido'),
+                      Icons.email,
+                      'Correo',
+                      user?.email ?? 'Desconocido',
+                    ),
                     const Divider(height: 24),
                     _buildProfileInfoRow(Icons.person, 'Nombre', 'Usuario'),
                     const Divider(height: 24),
                     _buildProfileInfoRow(
-                        Icons.phone, 'Teléfono', 'No especificado'),
+                      Icons.phone,
+                      'Teléfono',
+                      'No especificado',
+                    ),
                   ],
                 ),
               ),
@@ -762,13 +806,7 @@ Widget _getCurrentPage() {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: _lightTextColor,
-              ),
-            ),
+            Text(label, style: TextStyle(fontSize: 12, color: _lightTextColor)),
             const SizedBox(height: 4),
             Text(
               value,
@@ -804,18 +842,21 @@ Widget _getCurrentPage() {
             icon: Icon(Icons.home),
             label: 'Inicio',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Mapa',
-          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
           BottomNavigationBarItem(
             icon: Icon(
               FirebaseAuth.instance.currentUser != null
                   ? Icons.person
                   : Icons.login,
             ),
-            label: FirebaseAuth.instance.currentUser != null ? 'Perfil' : 'Login',
+            label:
+                FirebaseAuth.instance.currentUser != null ? 'Perfil' : 'Login',
           ),
+          if (_userRole == 'admin')
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Administrar',
+            ),
         ],
       ),
     );

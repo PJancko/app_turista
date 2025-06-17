@@ -23,12 +23,26 @@ class _MapScreenState extends State<MapScreen> {
   final RecommendationService _recommendationService = RecommendationService();
   Map<String, double> _circleRadii = {};
   Timer? _pulseTimer;
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     _loadMarkersWithRecommendations();
     _startPulsatingEffect();
+    _pulseTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_disposed) return;
+      setState(() {
+        // actualización de estado
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _pulseTimer?.cancel();
+    super.dispose();
   }
 
   // Crear marcadores con efectos visuales basados en recomendaciones
@@ -143,9 +157,7 @@ class _MapScreenState extends State<MapScreen> {
   }) async {
     // Color exclusivo para recomendados (atractivos)
     if (isAttractive) {
-      return BitmapDescriptor.defaultMarkerWithHue(
-        BitmapDescriptor.hueMagenta,
-      ); 
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta);
     }
 
     // Colores normales por tipo
@@ -158,11 +170,6 @@ class _MapScreenState extends State<MapScreen> {
         BitmapDescriptor.hueYellow,
       ); // Amarillo
     }
-  }
-
-  // Calcular radio del círculo palpitante
-  double _calculatePulseRadius(double force) {
-    return 50 + (force * 10).clamp(0, 100); // Radio entre 50-150 metros
   }
 
   // Cargar marcadores básicos (sin recomendaciones)

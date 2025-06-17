@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import './login_screen.dart';
 import './admin_screen.dart';
 import './map_screen.dart';
@@ -498,6 +499,8 @@ class _HomeLayoutState extends State<HomeLayout>
   }
 
   void _showItemDetails(dynamic item, String type) {
+    double _rating = 3.0;
+
     showDialog(
       context: context,
       builder:
@@ -509,80 +512,144 @@ class _HomeLayoutState extends State<HomeLayout>
             backgroundColor: _secondaryColor,
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.nombre,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    item.descripcion,
-                    style: TextStyle(fontSize: 15, color: _textColor),
-                  ),
-                  const SizedBox(height: 12),
-                  if (type == 'evento')
-                    Row(
+              child: StatefulBuilder(
+                builder:
+                    (context, setState) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 18,
-                          color: _primaryColor,
-                        ),
-                        const SizedBox(width: 8),
                         Text(
-                          'Fecha: ${item.fecha.toString().split(' ')[0]}',
-                          style: TextStyle(color: _textColor),
-                        ),
-                      ],
-                    ),
-                  if (type == 'lugar')
-                    Row(
-                      children: [
-                        Icon(Icons.access_time, size: 18, color: _primaryColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Horario: ${item.horario}',
-                          style: TextStyle(color: _textColor),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          foregroundColor: _lightTextColor,
-                        ),
-                        child: const Text('Cerrar'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          setState(() {
-                            _bottomIndex = 1;
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryColor,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          item.nombre,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: _primaryColor,
                           ),
                         ),
-                        child: const Text('Ver en mapa'),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(height: 12),
+                        Text(
+                          item.descripcion,
+                          style: TextStyle(fontSize: 15, color: _textColor),
+                        ),
+                        const SizedBox(height: 12),
+                        if (type == 'evento')
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 18,
+                                color: _primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Fecha: ${item.fecha.toString().split(' ')[0]}',
+                                style: TextStyle(color: _textColor),
+                              ),
+                            ],
+                          ),
+                        if (type == 'lugar')
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 18,
+                                color: _primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Horario: ${item.horario}',
+                                style: TextStyle(color: _textColor),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 20),
+
+                        // ★ Calificación ★
+                        Text(
+                          'Califica este ${type == 'evento' ? 'evento' : 'lugar'}:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        RatingBar.builder(
+                          initialRating: _rating,
+                          minRating: 1,
+                          direction: Axis.horizontal,
+                          allowHalfRating: false,
+                          itemCount: 5,
+                          itemSize: 30,
+                          itemPadding: const EdgeInsets.symmetric(
+                            horizontal: 4.0,
+                          ),
+                          unratedColor: Colors.grey[300],
+                          itemBuilder:
+                              (context, _) =>
+                                  Icon(Icons.star, color: Colors.amber[700]),
+                          onRatingUpdate: (rating) {
+                            setState(() {
+                              _rating = rating;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                foregroundColor: _lightTextColor,
+                              ),
+                              child: const Text('Cerrar'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () async {
+                                // Guardar calificación en Firestore
+                                final user = FirebaseAuth.instance.currentUser;
+                                if (user != null) {
+                                  final calificacionData = {
+                                    'userID': user.uid,
+                                    'lugarID': item.id,
+                                    'estrellas': _rating.toInt(),
+                                    'fecha': Timestamp.now(),
+                                  };
+
+                                  final collection =
+                                      type == 'evento'
+                                          ? 'calificaciones'
+                                          : 'calificaciones_lugares';
+
+                                  await FirebaseFirestore.instance
+                                      .collection(collection)
+                                      .add(calificacionData);
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('¡Gracias por calificar!'),
+                                      backgroundColor: _primaryColor,
+                                    ),
+                                  );
+                                }
+
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryColor,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Guardar y cerrar'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
               ),
             ),
           ),

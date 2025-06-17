@@ -145,7 +145,7 @@ class _MapScreenState extends State<MapScreen> {
     if (isAttractive) {
       return BitmapDescriptor.defaultMarkerWithHue(
         BitmapDescriptor.hueMagenta,
-      ); // 💜
+      ); 
     }
 
     // Colores normales por tipo
@@ -338,19 +338,6 @@ class _MapScreenState extends State<MapScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[300],
                         foregroundColor: Colors.black,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        // Aquí podrías agregar navegación a detalles completos
-                      },
-                      icon: const Icon(Icons.info),
-                      label: const Text('Más info'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            type == 'evento' ? Colors.blue : Colors.green,
-                        foregroundColor: Colors.white,
                       ),
                     ),
                   ],

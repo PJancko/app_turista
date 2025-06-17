@@ -18,6 +18,7 @@ class _HomeLayoutState extends State<HomeLayout>
   late TabController _tabController;
   final RecommendationService _recommendationService = RecommendationService();
 
+  
   List<dynamic> _eventosRecomendados = [];
   List<dynamic> _lugaresRecomendados = [];
   List<dynamic> _favoritosData = [];
@@ -27,8 +28,92 @@ class _HomeLayoutState extends State<HomeLayout>
   final List<Tab> _tabs = const [
     Tab(text: 'Eventos'),
     Tab(text: 'Lugares'),
-    Tab(text: 'Favoritos'),
   ];
+
+  // Colores principales
+  final Color _primaryColor = const Color(0xFFD32F2F); // Rojo intenso
+  final Color _secondaryColor = const Color(0xFFFFFFFF); // Blanco
+  final Color _accentColor = const Color(0xFFFFCDD2); // Rojo claro
+  final Color _textColor = const Color(0xFF212121); // Negro oscuro
+  final Color _lightTextColor = const Color(0xFF757575); // Gris
+
+Widget _buildMapLegend() {
+  return Positioned(
+    top: 20, // Más arriba
+    left: 24,
+    right: 20,
+    child: Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildLegendItem(
+              color: Colors.blue,
+              icon: Icons.place,
+              title: 'Eventos',
+              subtitle: 'Actividades y\ncelebraciones',
+            ),
+            _buildLegendItem(
+              color: Colors.yellow[700]!,
+              icon: Icons.place,
+              title: 'Lugares',
+              subtitle: 'Sitios turísticos\ny puntos clave',
+            ),
+            _buildLegendItem(
+              color: const Color.fromARGB(255, 224, 49, 204),
+              icon: Icons.place,
+              title: 'Recomendados',
+              subtitle: 'Según tus\npreferencias',
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _buildLegendItem({
+  required Color color,
+  required IconData icon,
+  required String title,
+  required String subtitle,
+}) {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      CircleAvatar(
+        backgroundColor: color,
+        radius: 12, // Más pequeño
+        child: Icon(icon, size: 14, color: Colors.white),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        title,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: _textColor,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 9,
+          color: _lightTextColor,
+        ),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+      ),
+    ],
+  );
+}
+
 
   @override
   void initState() {
@@ -107,34 +192,94 @@ class _HomeLayoutState extends State<HomeLayout>
   }
 
   Widget _buildTopSearch() {
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: _secondaryColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2))
+        ],
+      ),
       child: TextField(
         decoration: InputDecoration(
           hintText: 'Buscar eventos o lugares...',
-          prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+          hintStyle: TextStyle(color: _lightTextColor),
+          prefixIcon: Icon(Icons.search, color: _primaryColor),
           filled: true,
-          fillColor: Colors.grey[200],
+          fillColor: _accentColor.withOpacity(0.2),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(25),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
         ),
-        onSubmitted: (query) {
+        onChanged: (query) {
           _searchItems(query);
         },
       ),
     );
   }
 
-  void _searchItems(String query) {
-    print('Buscando: $query');
+Future<void> _searchItems(String query) async {
+  if (query.isEmpty) {
+    // Si no hay búsqueda, vuelve a cargar las recomendaciones
+    await _loadRecommendations();
+    return;
   }
 
+  setState(() => _isLoading = true);
+
+  try {
+    final resultados = await _recommendationService.searchItems(query);
+
+      setState(() {
+        _eventosRecomendados = resultados
+            .where((r) => r['type'] == 'evento')
+            .map((r) => _normalizarRecommendation(r))
+            .toList();
+
+        _lugaresRecomendados = resultados
+            .where((r) => r['type'] == 'lugar')
+            .map((r) => _normalizarRecommendation(r))
+            .toList();
+      });
+  } catch (e) {
+    print('Error al buscar items: $e');
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
+    Map<String, dynamic> _normalizarRecommendation(Map<String, dynamic> r) {
+      final item = r['item'];
+
+      if (item is Map && item.containsKey('nombre')) {
+        return r;
+      }
+
+      // Caso de emergencia: si item es un String o no tiene 'nombre'
+      return {
+        ...r,
+        'item': {
+          'nombre': '[Sin nombre]',
+          // Agrega más campos si quieres
+        }
+      };
+    }
+    
+
   Widget _buildRecommendationCard(Map<String, dynamic> recommendation) {
-    final double force = recommendation['force'];
+    final nombre = (recommendation['item'] is Map)
+    ? recommendation['item']['nombre']
+    : recommendation['item']?.nombre;
+  final double force = recommendation['force'];
     final bool isAttractive = recommendation['isAttractive'] ?? false;
     final double itemCharge = recommendation['itemCharge'] ?? 1.0;
     final double userCharge = recommendation['userCharge'] ?? 1.0;
 
-    // Calcular efectos visuales basados en si es atractivo
     final double opacity =
         isAttractive
             ? _calculateAttractiveOpacity(force)
@@ -145,145 +290,153 @@ class _HomeLayoutState extends State<HomeLayout>
             ? _calculateAttractiveScale(force)
             : _calculateNormalScale(force);
 
-    // Efecto de "palpitación" para lugares atractivos
-    final Color cardColor = isAttractive ? Colors.white : Colors.grey[50]!;
-
-    final Color borderColor =
-        isAttractive ? Colors.blue.withOpacity(0.3) : Colors.transparent;
+    // Colores basados en el tipo
+    final Color typeColor = recommendation['type'] == 'evento'
+        ? _primaryColor
+        : Colors.green[700]!;
 
     return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       child: Opacity(
         opacity: opacity,
         child: Transform.scale(
           scale: scale,
           child: Card(
-            color: cardColor,
-            elevation: isAttractive ? 4.0 : 2.0,
+            elevation: isAttractive ? 6.0 : 3.0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: borderColor, width: 2),
+              side: BorderSide(
+                  color: isAttractive
+                      ? typeColor.withOpacity(0.3)
+                      : Colors.transparent,
+                  width: 1.5),
             ),
-            child: Container(
-              decoration:
-                  isAttractive
-                      ? BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.blue.withOpacity(0.05),
-                            Colors.white,
-                            Colors.blue.withOpacity(0.05),
-                          ],
-                          stops: [0.0, 0.5, 1.0],
-                        ),
-                      )
-                      : null,
-              child: ListTile(
-                leading: Stack(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => _showItemDetails(
+                  recommendation['item'], recommendation['type']),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
                   children: [
-                    CircleAvatar(
-                      backgroundColor:
-                          recommendation['type'] == 'evento'
-                              ? (isAttractive
-                                  ? Colors.blue
-                                  : Colors.blue.withOpacity(0.6))
-                              : (isAttractive
-                                  ? Colors.green
-                                  : Colors.green.withOpacity(0.6)),
+                    // Icono con efecto especial
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: typeColor.withOpacity(isAttractive ? 0.9 : 0.7),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: isAttractive
+                            ? [
+                                BoxShadow(
+                                  color: typeColor.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                )
+                              ]
+                            : null,
+                      ),
                       child: Icon(
                         recommendation['type'] == 'evento'
                             ? Icons.event
-                            : Icons.location_on,
-                        color: Colors.white,
-                        size: isAttractive ? 24 : 20,
+                            : Icons.place,
+                        color: _secondaryColor,
+                        size: isAttractive ? 28 : 24,
                       ),
                     ),
-                    // Efecto de "palpitación" para lugares atractivos
-                    if (isAttractive)
-                      Positioned.fill(
-                        child: AnimatedContainer(
-                          duration: Duration(seconds: 2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.blue.withOpacity(0.4),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                title: Text(
-                  recommendation['item'].nombre,
-                  style: TextStyle(
-                    fontWeight:
-                        isAttractive ? FontWeight.bold : FontWeight.normal,
-                    color: isAttractive ? Colors.black87 : Colors.black54,
-                  ),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Fuerza: ${force.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color:
-                            isAttractive ? Colors.blue[700] : Colors.grey[600],
-                        fontWeight:
-                            isAttractive ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    ),
-                    Text(
-                      'Distancia: ${recommendation['distance'].toStringAsFixed(1)} km',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    if (itemCharge > 1.0) // Mostrar calificación si existe
-                      Row(
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.star, size: 16, color: Colors.amber),
                           Text(
-                            ' ${itemCharge.toStringAsFixed(1)}',
+                            nombre,
                             style: TextStyle(
-                              color: Colors.amber[700],
-                              fontWeight: FontWeight.w500,
+                              fontSize: 16,
+                              fontWeight: isAttractive
+                                  ? FontWeight.bold
+                                  : FontWeight.w600,
+                              color: _textColor,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.linear_scale,
+                                  size: 16, color: typeColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Fuerza: ${force.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: typeColor,
+                                  fontWeight: isAttractive
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(Icons.directions_walk,
+                                  size: 16, color: _lightTextColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${recommendation['distance'].toStringAsFixed(1)} km',
+                                style: TextStyle(
+                                    fontSize: 13, color: _lightTextColor),
+                              ),
+                            ],
+                          ),
+                          if (itemCharge > 1.0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.star,
+                                      size: 16, color: Colors.amber[700]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${itemCharge.toStringAsFixed(1)}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.amber[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (isAttractive)
+                            Container(
+                              margin: const EdgeInsets.only(top: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: typeColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: typeColor.withOpacity(0.2), width: 1),
+                              ),
+                              child: Text(
+                                '¡Recomendado para ti!',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: typeColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                    if (isAttractive)
-                      Container(
-                        margin: EdgeInsets.only(top: 4),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '¡Te puede gustar!',
-                          style: TextStyle(
-                            color: Colors.blue[700],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: _lightTextColor,
+                    ),
                   ],
                 ),
-                trailing: Icon(
-                  Icons.arrow_forward_ios,
-                  color: isAttractive ? Colors.blue : Colors.grey,
-                  size: 16,
-                ),
-                onTap:
-                    () => _showItemDetails(
-                      recommendation['item'],
-                      recommendation['type'],
-                    ),
               ),
             ),
           ),
@@ -292,24 +445,20 @@ class _HomeLayoutState extends State<HomeLayout>
     );
   }
 
-  // Opacidad para lugares atractivos (más visible)
   double _calculateAttractiveOpacity(double force) {
-    return 0.9 + (force / 20).clamp(0.0, 0.1); // Opacidad entre 0.9 y 1.0
+    return 0.95 + (force / 20).clamp(0.0, 0.05);
   }
 
-  // Opacidad para lugares normales (menos visible)
   double _calculateNormalOpacity(double force) {
-    return 0.4 + (force / 25).clamp(0.0, 0.4); // Opacidad entre 0.4 y 0.8
+    return 0.6 + (force / 25).clamp(0.0, 0.3);
   }
 
-  // Escala para lugares atractivos (más grandes)
   double _calculateAttractiveScale(double force) {
-    return 1.0 + (force / 15).clamp(0.0, 0.15); // Escala entre 1.0x y 1.15x
+    return 1.0 + (force / 15).clamp(0.0, 0.1);
   }
 
-  // Escala para lugares normales (más pequeños)
   double _calculateNormalScale(double force) {
-    return 0.85 + (force / 20).clamp(0.0, 0.10); // Escala entre 0.85x y 0.95x
+    return 0.9 + (force / 20).clamp(0.0, 0.08);
   }
 
   void _toggleFavorite(String itemId, String type) {
@@ -319,90 +468,186 @@ class _HomeLayoutState extends State<HomeLayout>
   void _showItemDetails(dynamic item, String type) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(item.nombre),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.descripcion),
-                const SizedBox(height: 8),
-                if (type == 'evento')
-                  Text('Fecha: ${item.fecha.toString().split(' ')[0]}'),
-                if (type == 'lugar') Text('Horario: ${item.horario}'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 0,
+        backgroundColor: _secondaryColor,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.nombre,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _primaryColor,
+                ),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _bottomIndex = 1;
-                  });
-                },
-                child: const Text('Ver en mapa'),
+              const SizedBox(height: 12),
+              Text(
+                item.descripcion,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _textColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (type == 'evento')
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today,
+                        size: 18, color: _primaryColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Fecha: ${item.fecha.toString().split(' ')[0]}',
+                      style: TextStyle(color: _textColor),
+                    ),
+                  ],
+                ),
+              if (type == 'lugar')
+                Row(
+                  children: [
+                    Icon(Icons.access_time, size: 18, color: _primaryColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Horario: ${item.horario}',
+                      style: TextStyle(color: _textColor),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _lightTextColor,
+                    ),
+                    child: const Text('Cerrar'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _bottomIndex = 1;
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Ver en mapa'),
+                  ),
+                ],
               ),
             ],
           ),
+        ),
+      ),
     );
   }
 
   Widget _buildTabContent() {
     return Column(
       children: [
-        TabBar(
-          controller: _tabController,
-          tabs: _tabs,
-          labelColor: Colors.blue,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.blue,
+        Container(
+          decoration: BoxDecoration(
+            color: _secondaryColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TabBar(
+            controller: _tabController,
+            tabs: _tabs,
+            labelColor: _primaryColor,
+            unselectedLabelColor: _lightTextColor,
+            indicatorColor: _primaryColor,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
         ),
         Expanded(
-          child:
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      // Tab de Eventos
-                      _eventosRecomendados.isEmpty
-                          ? const Center(
-                            child: Text('No hay eventos recomendados'),
-                          )
-                          : ListView.builder(
-                            itemCount: _eventosRecomendados.length,
-                            itemBuilder:
-                                (context, index) => _buildRecommendationCard(
-                                  _eventosRecomendados[index],
-                                ),
-                          ),
-                      // Tab de Lugares
-                      _lugaresRecomendados.isEmpty
-                          ? const Center(
-                            child: Text('No hay lugares recomendados'),
-                          )
-                          : ListView.builder(
-                            itemCount: _lugaresRecomendados.length,
-                            itemBuilder:
-                                (context, index) => _buildRecommendationCard(
-                                  _lugaresRecomendados[index],
-                                ),
-                          ),
-                      // Tab de Favoritos
-                      const Center(child: Text('Favoritos - Por implementar')),
-                    ],
+          child: _isLoading
+              ? Center(
+                  child: CircularProgressIndicator(
+                    color: _primaryColor,
                   ),
+                )
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Tab de Eventos
+                    _eventosRecomendados.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.event,
+                                    size: 50, color: _lightTextColor),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No hay eventos recomendados',
+                                  style: TextStyle(color: _lightTextColor),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(top: 8),
+                            itemCount: _eventosRecomendados.length,
+                            itemBuilder: (context, index) =>
+                                _buildRecommendationCard(
+                                    _eventosRecomendados[index]),
+                          ),
+                    // Tab de Lugares
+                    _lugaresRecomendados.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.place,
+                                    size: 50, color: _lightTextColor),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No hay lugares recomendados',
+                                  style: TextStyle(color: _lightTextColor),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(top: 8),
+                            itemCount: _lugaresRecomendados.length,
+                            itemBuilder: (context, index) =>
+                                _buildRecommendationCard(
+                                    _lugaresRecomendados[index]),
+                          ),
+                    // Eliminado el tercer Tab (Favoritos)
+                  ],
+                ),
         ),
       ],
     );
   }
 
-  Widget _getCurrentPage() {
+Widget _getCurrentPage() {
     final isLoggedIn = FirebaseAuth.instance.currentUser != null;
 
     switch (_bottomIndex) {
@@ -411,7 +656,12 @@ class _HomeLayoutState extends State<HomeLayout>
           children: [_buildTopSearch(), Expanded(child: _buildTabContent())],
         );
       case 1:
-        return MapScreen(currentPosition: _currentPosition);
+        return Stack(
+          children: [
+            MapScreen(currentPosition: _currentPosition),
+            _buildMapLegend(), // Agrega la leyenda aquí
+          ],
+        );
       case 2:
         return isLoggedIn ? _buildPerfilScreen() : const LoginScreen();
       default:
@@ -422,32 +672,81 @@ class _HomeLayoutState extends State<HomeLayout>
   Widget _buildPerfilScreen() {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Center(
+    return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.person, size: 80),
-            const SizedBox(height: 20),
-            Text(
-              'Correo: ${user?.email ?? 'Desconocido'}',
-              style: const TextStyle(fontSize: 18),
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primaryColor.withOpacity(0.1),
+                border: Border.all(color: _primaryColor, width: 2),
+              ),
+              child: Icon(
+                Icons.person,
+                size: 60,
+                color: _primaryColor,
+              ),
             ),
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                setState(() {
-                  _bottomIndex = 0; // volver a Inicio tras logout
-                });
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Sesión cerrada')));
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Cerrar sesión'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            const SizedBox(height: 24),
+            Text(
+              'Mi Perfil',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: _primaryColor,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildProfileInfoRow(
+                        Icons.email, 'Correo', user?.email ?? 'Desconocido'),
+                    const Divider(height: 24),
+                    _buildProfileInfoRow(Icons.person, 'Nombre', 'Usuario'),
+                    const Divider(height: 24),
+                    _buildProfileInfoRow(
+                        Icons.phone, 'Teléfono', 'No especificado'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                  setState(() {
+                    _bottomIndex = 0;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Sesión cerrada'),
+                      backgroundColor: _primaryColor,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('Cerrar sesión'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -455,9 +754,40 @@ class _HomeLayoutState extends State<HomeLayout>
     );
   }
 
+  Widget _buildProfileInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: _primaryColor),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: _lightTextColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: _textColor,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _secondaryColor,
       body: SafeArea(child: _getCurrentPage()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _bottomIndex,
@@ -466,20 +796,25 @@ class _HomeLayoutState extends State<HomeLayout>
             _bottomIndex = index;
           });
         },
+        selectedItemColor: _primaryColor,
+        unselectedItemColor: _lightTextColor,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
         items: [
           const BottomNavigationBarItem(
             icon: Icon(Icons.home),
             label: 'Inicio',
           ),
-          const BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: 'Mapa',
+          ),
           BottomNavigationBarItem(
             icon: Icon(
               FirebaseAuth.instance.currentUser != null
                   ? Icons.person
                   : Icons.login,
             ),
-            label:
-                FirebaseAuth.instance.currentUser != null ? 'Perfil' : 'Login',
+            label: FirebaseAuth.instance.currentUser != null ? 'Perfil' : 'Login',
           ),
         ],
       ),

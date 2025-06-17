@@ -9,7 +9,7 @@ Future<void> poblarTodo() async {
 
   // 1. Poblar usuario
   await _db.collection('usuarios').doc(usuarioId).set({
-    'nombre': 'Pablo Quispe',
+    'nombre': 'Pablo Gonzales',
     'correo': 'pablo@example.com',
     'rol': 'usuario',
     'favoritosEventos': [],

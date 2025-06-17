@@ -4,7 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/recommendation_service.dart';
-import '../models/models.dart';
+import 'dart:async';
 
 class MapScreen extends StatefulWidget {
   final Position? currentPosition;
@@ -21,11 +21,14 @@ class _MapScreenState extends State<MapScreen> {
   Set<Circle> _circles = {};
   bool _isLoading = true;
   final RecommendationService _recommendationService = RecommendationService();
+  Map<String, double> _circleRadii = {};
+  Timer? _pulseTimer;
 
   @override
   void initState() {
     super.initState();
     _loadMarkersWithRecommendations();
+    _startPulsatingEffect();
   }
 
   // Crear marcadores con efectos visuales basados en recomendaciones
@@ -33,7 +36,7 @@ class _MapScreenState extends State<MapScreen> {
     try {
       Set<Marker> markers = {};
       Set<Circle> circles = {};
-      
+
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null || widget.currentPosition == null) {
         // Si no hay usuario logueado, cargar marcadores normales
@@ -42,11 +45,12 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       // Obtener recomendaciones
-      List<dynamic> recommendations = await _recommendationService.getRecommendations(
-        userId: user.uid,
-        userPosition: widget.currentPosition!,
-        limit: 50, // Cargar más para el mapa
-      );
+      List<dynamic> recommendations = await _recommendationService
+          .getRecommendations(
+            userId: user.uid,
+            userPosition: widget.currentPosition!,
+            limit: 50, // Cargar más para el mapa
+          );
 
       // Procesar cada recomendación
       for (var recommendation in recommendations) {
@@ -54,7 +58,7 @@ class _MapScreenState extends State<MapScreen> {
         double force = recommendation['force'] ?? 1.0;
         dynamic item = recommendation['item'];
         String type = recommendation['type'];
-        
+
         LatLng position = LatLng(
           item.geolocalizacion.latitude,
           item.geolocalizacion.longitude,
@@ -73,32 +77,36 @@ class _MapScreenState extends State<MapScreen> {
             position: position,
             infoWindow: InfoWindow(
               title: item.nombre,
-              snippet: isAttractive 
-                ? '¡Te puede gustar! • ${item.descripcion}'
-                : item.descripcion ?? '',
+              snippet:
+                  isAttractive
+                      ? '¡Te puede gustar! • ${item.descripcion}'
+                      : item.descripcion ?? '',
             ),
             icon: markerIcon,
             onTap: () => _showItemDetails(item, type, recommendation),
           ),
         );
 
-        // Agregar círculo "palpitante" para lugares atractivos
-        if (isAttractive) {
-          circles.add(
-            Circle(
-              circleId: CircleId('pulse_${type}_${item.id}'),
-              center: position,
-              radius: _calculatePulseRadius(force), // Radio basado en la fuerza
-              fillColor: (type == 'evento' ? Colors.blue : Colors.green)
-                  .withOpacity(0.1),
-              strokeColor: (type == 'evento' ? Colors.blue : Colors.green)
-                  .withOpacity(0.3),
-              strokeWidth: 2,
-            ),
-          );
-        }
-      }
+        final circleId = 'pulse_${type}_${item.id}';
 
+        circles.add(
+          Circle(
+            circleId: CircleId(circleId),
+            center: position,
+            radius: _circleRadii[circleId] ?? 80,
+            fillColor: (type == 'evento' ? Colors.blue : Colors.green)
+                .withOpacity(0.1),
+            strokeColor: (type == 'evento' ? Colors.blue : Colors.green)
+                .withOpacity(0.3),
+            strokeWidth: 2,
+          ),
+        );
+
+        _circleRadii[circleId] = 80; // Valor inicial
+        print(
+          'Item recomendado: ${item.nombre} - Atractivo: $isAttractive - Tipo: $type',
+        );
+      }
       // Agregar marcador de ubicación actual
       if (widget.currentPosition != null) {
         markers.add(
@@ -109,7 +117,9 @@ class _MapScreenState extends State<MapScreen> {
               widget.currentPosition!.longitude,
             ),
             infoWindow: const InfoWindow(title: 'Mi ubicación'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRed,
+            ),
           ),
         );
       }
@@ -131,21 +141,22 @@ class _MapScreenState extends State<MapScreen> {
     required bool isAttractive,
     required double force,
   }) async {
-    // Por ahora usar marcadores estándar con diferentes colores
-    // Puedes mejorar esto creando marcadores completamente personalizados
-    
+    // Color exclusivo para recomendados (atractivos)
+    if (isAttractive) {
+      return BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueMagenta,
+      ); // 💜
+    }
+
+    // Colores normales por tipo
     if (type == 'evento') {
-      if (isAttractive) {
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
-      } else {
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
-      }
+      return BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueAzure,
+      ); // Azul claro
     } else {
-      if (isAttractive) {
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
-      } else {
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
-      }
+      return BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueYellow,
+      ); // Amarillo
     }
   }
 
@@ -160,14 +171,13 @@ class _MapScreenState extends State<MapScreen> {
       Set<Marker> markers = {};
 
       // Cargar eventos
-      QuerySnapshot eventos = await FirebaseFirestore.instance
-          .collection('eventos')
-          .get();
+      QuerySnapshot eventos =
+          await FirebaseFirestore.instance.collection('eventos').get();
 
       for (var doc in eventos.docs) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         GeoPoint geoPoint = data['geolocalizacion'];
-        
+
         markers.add(
           Marker(
             markerId: MarkerId('evento_${doc.id}'),
@@ -176,20 +186,21 @@ class _MapScreenState extends State<MapScreen> {
               title: data['nombre'] ?? 'Evento',
               snippet: data['descripcion'] ?? '',
             ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueBlue,
+            ),
           ),
         );
       }
 
       // Cargar lugares
-      QuerySnapshot lugares = await FirebaseFirestore.instance
-          .collection('lugares')
-          .get();
+      QuerySnapshot lugares =
+          await FirebaseFirestore.instance.collection('lugares').get();
 
       for (var doc in lugares.docs) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         GeoPoint geoPoint = data['geolocalizacion'];
-        
+
         markers.add(
           Marker(
             markerId: MarkerId('lugar_${doc.id}'),
@@ -198,7 +209,9 @@ class _MapScreenState extends State<MapScreen> {
               title: data['nombre'] ?? 'Lugar',
               snippet: data['descripcion'] ?? '',
             ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
           ),
         );
       }
@@ -213,7 +226,9 @@ class _MapScreenState extends State<MapScreen> {
               widget.currentPosition!.longitude,
             ),
             infoWindow: const InfoWindow(title: 'Mi ubicación'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRed,
+            ),
           ),
         );
       }
@@ -232,108 +247,117 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // Mostrar detalles del lugar/evento
-  void _showItemDetails(dynamic item, String type, Map<String, dynamic> recommendation) {
+  void _showItemDetails(
+    dynamic item,
+    String type,
+    Map<String, dynamic> recommendation,
+  ) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  type == 'evento' ? Icons.event : Icons.location_on,
-                  color: type == 'evento' ? Colors.blue : Colors.green,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    item.nombre,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                Row(
+                  children: [
+                    Icon(
+                      type == 'evento' ? Icons.event : Icons.location_on,
+                      color: type == 'evento' ? Colors.blue : Colors.green,
                     ),
-                  ),
-                ),
-                if (recommendation['isAttractive'] ?? false)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '¡Te puede gustar!',
-                      style: TextStyle(
-                        color: Colors.blue[700],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.nombre,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              item.descripcion ?? 'Sin descripción',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            if (type == 'evento')
-              Text('Fecha: ${item.fecha.toString().split(' ')[0]}'),
-            if (type == 'lugar')
-              Text('Horario: ${item.horario ?? 'No especificado'}'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.flash_on, size: 16, color: Colors.blue[700]),
+                    if (recommendation['isAttractive'] ?? false)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '¡Te puede gustar!',
+                          style: TextStyle(
+                            color: Colors.blue[700],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Text(
-                  ' Fuerza: ${recommendation['force'].toStringAsFixed(2)}',
-                  style: TextStyle(
-                    color: Colors.blue[700],
-                    fontWeight: FontWeight.w600,
-                  ),
+                  item.descripcion ?? 'Sin descripción',
+                  style: const TextStyle(fontSize: 16),
                 ),
-                const SizedBox(width: 16),
-                Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                Text(
-                  ' ${recommendation['distance'].toStringAsFixed(1)} km',
-                  style: TextStyle(color: Colors.grey[600]),
+                const SizedBox(height: 8),
+                if (type == 'evento')
+                  Text('Fecha: ${item.fecha.toString().split(' ')[0]}'),
+                if (type == 'lugar')
+                  Text('Horario: ${item.horario ?? 'No especificado'}'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.flash_on, size: 16, color: Colors.blue[700]),
+                    Text(
+                      ' Fuerza: ${recommendation['force'].toStringAsFixed(2)}',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                    Text(
+                      ' ${recommendation['distance'].toStringAsFixed(1)} km',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Cerrar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        foregroundColor: Colors.black,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        // Aquí podrías agregar navegación a detalles completos
+                      },
+                      icon: const Icon(Icons.info),
+                      label: const Text('Más info'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            type == 'evento' ? Colors.blue : Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                  label: const Text('Cerrar'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
-                    foregroundColor: Colors.black,
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // Aquí podrías agregar navegación a detalles completos
-                  },
-                  icon: const Icon(Icons.info),
-                  label: const Text('Más info'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: type == 'evento' ? Colors.blue : Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -341,43 +365,48 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     // Ubicación por defecto: Sucre, Bolivia
     LatLng defaultLocation = const LatLng(-19.0478, -65.2596);
-    LatLng currentLocation = widget.currentPosition != null
-        ? LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude)
-        : defaultLocation;
+    LatLng currentLocation =
+        widget.currentPosition != null
+            ? LatLng(
+              widget.currentPosition!.latitude,
+              widget.currentPosition!.longitude,
+            )
+            : defaultLocation;
 
     return Scaffold(
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Cargando recomendaciones...'),
-                ],
+      body:
+          _isLoading
+              ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Cargando recomendaciones...'),
+                  ],
+                ),
+              )
+              : GoogleMap(
+                onMapCreated: (GoogleMapController controller) {
+                  _mapController = controller;
+                },
+                initialCameraPosition: CameraPosition(
+                  target: currentLocation,
+                  zoom: 15.0,
+                ),
+                markers: _markers,
+                circles: _circles, // Agregar círculos palpitantes
+                myLocationEnabled: true,
+                myLocationButtonEnabled: true,
               ),
-            )
-          : GoogleMap(
-              onMapCreated: (GoogleMapController controller) {
-                _mapController = controller;
-              },
-              initialCameraPosition: CameraPosition(
-                target: currentLocation,
-                zoom: 15.0,
-              ),
-              markers: _markers,
-              circles: _circles, // Agregar círculos palpitantes
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-            ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           FloatingActionButton(
             heroTag: "refresh",
             onPressed: _loadMarkersWithRecommendations,
-            child: const Icon(Icons.refresh),
             tooltip: 'Actualizar recomendaciones',
+            child: const Icon(Icons.refresh),
           ),
           const SizedBox(height: 10),
           FloatingActionButton(
@@ -389,11 +418,36 @@ class _MapScreenState extends State<MapScreen> {
                 );
               }
             },
-            child: const Icon(Icons.my_location),
             tooltip: 'Mi ubicación',
+            child: const Icon(Icons.my_location),
           ),
         ],
       ),
     );
+  }
+
+  void _startPulsatingEffect() {
+    const duration = Duration(milliseconds: 300);
+
+    _pulseTimer?.cancel(); // por si ya existe
+    _pulseTimer = Timer.periodic(duration, (_) {
+      if (_circleRadii.isEmpty) return;
+
+      setState(() {
+        _circleRadii.updateAll((key, value) {
+          double newRadius = value + 10;
+          if (newRadius > 150) newRadius = 50;
+          return newRadius;
+        });
+
+        // reconstruir círculos con nuevos radios
+        _circles =
+            _circles.map((circle) {
+              final id = circle.circleId.value;
+              final newRadius = _circleRadii[id] ?? circle.radius;
+              return circle.copyWith(radiusParam: newRadius);
+            }).toSet();
+      });
+    });
   }
 }

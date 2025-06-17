@@ -1,7 +1,65 @@
+import 'package:app_turista/screens/register_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  String _error = '';
+
+  Future<void> _login() async {
+    try {
+      // Paso 1: Autenticación con Firebase Auth
+      UserCredential userCred = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
+
+      // Paso 2: Obtener UID del usuario autenticado
+      final uid = userCred.user!.uid;
+
+      // Paso 3: Buscar datos del usuario en Firestore
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(uid)
+              .get();
+
+      if (!doc.exists) {
+        setState(() {
+          _error = 'Usuario no registrado en la base de datos.';
+        });
+        return;
+      }
+
+      final data = doc.data()!;
+      final nombre = data['nombre'];
+      final rol = data['rol'];
+
+      // Paso 4: Mostrar mensaje de éxito
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Bienvenido $nombre ($rol)')));
+      // TODO: Redirigir a otra pantalla según rol o guardar sesión
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _error = e.message ?? 'Ocurrió un error inesperado.';
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error de conexión o datos.';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +80,7 @@ class LoginScreen extends StatelessWidget {
 
                 // Campo de correo
                 TextField(
+                  controller: _emailController,
                   decoration: InputDecoration(
                     hintText: 'Correo electrónico',
                     prefixIcon: const Icon(Icons.email_outlined),
@@ -36,6 +95,7 @@ class LoginScreen extends StatelessWidget {
 
                 // Campo de contraseña
                 TextField(
+                  controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(
                     hintText: 'Contraseña',
@@ -49,7 +109,10 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // ¿Olvidaste tu contraseña?
+                // Mostrar error
+                if (_error.isNotEmpty)
+                  Text(_error, style: const TextStyle(color: Colors.red)),
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -72,9 +135,7 @@ class LoginScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {
-                      // Acción de login
-                    },
+                    onPressed: _login,
                     child: const Text(
                       'Continuar',
                       style: TextStyle(color: Colors.white),
@@ -83,13 +144,15 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 25),
 
-                // Divider o texto separador
                 const Text('¿No tienes una cuenta?'),
-
-                // Enlace de registro
                 TextButton(
                   onPressed: () {
-                    // Navegar a pantalla de registro
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterScreen(),
+                      ),
+                    );
                   },
                   child: const Text('Crear cuenta'),
                 ),

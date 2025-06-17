@@ -5,10 +5,10 @@ import 'package:geolocator/geolocator.dart';
 
 class RecommendationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+
   // Constante k para la fórmula electromagnética
   static const double k = 1.0;
-  
+
   // Exponente α ajustable para la distancia
   static const double alpha = 2.0;
 
@@ -23,13 +23,22 @@ class RecommendationService {
   }
 
   // Calcular Q_i - calificación del usuario para un lugar específico
-  Future<double> calculateItemCharge(String itemId, String userId, String itemType) async {
+  Future<double> calculateItemCharge(
+    String itemId,
+    String userId,
+    String itemType,
+  ) async {
     try {
-      QuerySnapshot calificaciones = await _firestore
-          .collection(itemType == 'evento' ? 'calificaciones' : 'calificaciones_lugares')
-          .where('lugarID', isEqualTo: itemId)
-          .where('userID', isEqualTo: userId)
-          .get();
+      QuerySnapshot calificaciones =
+          await _firestore
+              .collection(
+                itemType == 'evento'
+                    ? 'calificaciones'
+                    : 'calificaciones_lugares',
+              )
+              .where('lugarID', isEqualTo: itemId)
+              .where('userID', isEqualTo: userId)
+              .get();
 
       if (calificaciones.docs.isNotEmpty) {
         return (calificaciones.docs.first['estrellas'] ?? 1).toDouble();
@@ -45,37 +54,38 @@ class RecommendationService {
   Future<double> calculateUserCharge(String userId, String categoria) async {
     try {
       // Obtener todas las calificaciones del usuario >= 3 estrellas
-      QuerySnapshot calificacionesLugares = await _firestore
-          .collection('calificaciones_lugares')
-          .where('userID', isEqualTo: userId)
-          .where('estrellas', isGreaterThanOrEqualTo: 3)
-          .get();
+      QuerySnapshot calificacionesLugares =
+          await _firestore
+              .collection('calificaciones_lugares')
+              .where('userID', isEqualTo: userId)
+              .where('estrellas', isGreaterThanOrEqualTo: 3)
+              .get();
 
-      QuerySnapshot calificacionesEventos = await _firestore
-          .collection('calificaciones')
-          .where('userID', isEqualTo: userId)
-          .where('estrellas', isGreaterThanOrEqualTo: 3)
-          .get();
+      QuerySnapshot calificacionesEventos =
+          await _firestore
+              .collection('calificaciones')
+              .where('userID', isEqualTo: userId)
+              .where('estrellas', isGreaterThanOrEqualTo: 3)
+              .get();
 
       // Combinar todas las calificaciones altas
       List<double> calificacionesAltas = [];
       Map<String, int> categoriaCount = {};
-      
+
       // Procesar calificaciones de lugares
       for (var doc in calificacionesLugares.docs) {
         double estrellas = (doc['estrellas'] ?? 3).toDouble();
         calificacionesAltas.add(estrellas);
-        
+
         // Obtener categoría del lugar para contar preferencias
         try {
-          DocumentSnapshot lugar = await _firestore
-              .collection('lugares')
-              .doc(doc['lugarID'])
-              .get();
-          
+          DocumentSnapshot lugar =
+              await _firestore.collection('lugares').doc(doc['lugarID']).get();
+
           if (lugar.exists) {
             String categoriaLugar = lugar['categoria'] ?? 'otros';
-            categoriaCount[categoriaLugar] = (categoriaCount[categoriaLugar] ?? 0) + 1;
+            categoriaCount[categoriaLugar] =
+                (categoriaCount[categoriaLugar] ?? 0) + 1;
           }
         } catch (e) {
           print('Error obteniendo categoría del lugar: $e');
@@ -86,17 +96,21 @@ class RecommendationService {
       for (var doc in calificacionesEventos.docs) {
         double estrellas = (doc['estrellas'] ?? 3).toDouble();
         calificacionesAltas.add(estrellas);
-        
+
         // Obtener categoría del evento
         try {
-          DocumentSnapshot evento = await _firestore
-              .collection('eventos')
-              .doc(doc['lugarID']) // Nota: en tu código usas 'lugarID' también para eventos
-              .get();
-          
+          DocumentSnapshot evento =
+              await _firestore
+                  .collection('eventos')
+                  .doc(
+                    doc['lugarID'],
+                  ) // Nota: en tu código usas 'lugarID' también para eventos
+                  .get();
+
           if (evento.exists) {
             String categoriaEvento = evento['categoria'] ?? 'otros';
-            categoriaCount[categoriaEvento] = (categoriaCount[categoriaEvento] ?? 0) + 1;
+            categoriaCount[categoriaEvento] =
+                (categoriaCount[categoriaEvento] ?? 0) + 1;
           }
         } catch (e) {
           print('Error obteniendo categoría del evento: $e');
@@ -109,25 +123,32 @@ class RecommendationService {
       }
 
       // Calcular promedio de calificaciones altas (esto será la base de Q_u)
-      double promedioGeneral = calificacionesAltas.reduce((a, b) => a + b) / calificacionesAltas.length;
-      
+      double promedioGeneral =
+          calificacionesAltas.reduce((a, b) => a + b) /
+          calificacionesAltas.length;
+
       // Bonus por preferencia de categoría
       double bonusCategoria = 1.0;
-      if (categoria != null && categoriaCount.containsKey(categoria)) {
+      if (categoriaCount.containsKey(categoria)) {
         int countCategoria = categoriaCount[categoria]!;
         int totalCalificaciones = calificacionesAltas.length;
-        
+
         // Si más del 30% de sus calificaciones altas son de esta categoría, dar bonus
         if (countCategoria / totalCalificaciones > 0.3) {
-          bonusCategoria = 1.0 + (countCategoria / totalCalificaciones * 0.5); // Bonus máximo de 50%
+          bonusCategoria =
+              1.0 +
+              (countCategoria /
+                  totalCalificaciones *
+                  0.5); // Bonus máximo de 50%
         }
       }
 
       // Q_u = promedio de calificaciones altas * bonus de categoría
-      double Qu = (promedioGeneral / 5.0) * bonusCategoria; // Normalizar a 0-1 y aplicar bonus
-      
+      double Qu =
+          (promedioGeneral / 5.0) *
+          bonusCategoria; // Normalizar a 0-1 y aplicar bonus
+
       return Qu;
-      
     } catch (e) {
       print('Error calculando Q_u: $e');
       return 1.0;
@@ -135,30 +156,35 @@ class RecommendationService {
   }
 
   // Función para determinar si un lugar es "atractivo" para el usuario
-  Future<bool> isAttractiveTo(String itemId, String userId, String itemType) async {
+  Future<bool> isAttractiveTo(
+    String itemId,
+    String userId,
+    String itemType,
+  ) async {
     try {
       // Obtener calificación específica del usuario para este lugar
       double itemCharge = await calculateItemCharge(itemId, userId, itemType);
-      
+
       // Si el usuario ya calificó este lugar con 3+ estrellas, es atractivo
       if (itemCharge >= 3.0) {
         return true;
       }
-      
+
       // Si no ha calificado, verificar si es de una categoría que le gusta
-      DocumentSnapshot itemDoc = await _firestore
-          .collection(itemType == 'evento' ? 'eventos' : 'lugares')
-          .doc(itemId)
-          .get();
-      
+      DocumentSnapshot itemDoc =
+          await _firestore
+              .collection(itemType == 'evento' ? 'eventos' : 'lugares')
+              .doc(itemId)
+              .get();
+
       if (itemDoc.exists) {
         String categoria = itemDoc['categoria'] ?? 'otros';
         double userCharge = await calculateUserCharge(userId, categoria);
-        
+
         // Si Q_u > 1.2, significa que tiene preferencia por esta categoría
         return userCharge > 1.2;
       }
-      
+
       return false;
     } catch (e) {
       print('Error verificando atractivo: $e');
@@ -174,7 +200,7 @@ class RecommendationService {
     int limit = 10,
   }) async {
     List<Map<String, dynamic>> recommendations = [];
-    
+
     try {
       // Obtener eventos
       Query eventosQuery = _firestore.collection('eventos');
@@ -182,42 +208,48 @@ class RecommendationService {
         eventosQuery = eventosQuery.where('categoria', isEqualTo: categoria);
       }
       QuerySnapshot eventos = await eventosQuery.get();
-      
+
       // Obtener lugares
       Query lugaresQuery = _firestore.collection('lugares');
       if (categoria != null) {
         lugaresQuery = lugaresQuery.where('categoria', isEqualTo: categoria);
       }
       QuerySnapshot lugares = await lugaresQuery.get();
-      
+
       // Procesar eventos
       for (var doc in eventos.docs) {
         Evento evento = Evento.fromFirestore(doc);
-        
+
         // Calcular distancia
-        double distance = Geolocator.distanceBetween(
-          userPosition.latitude,
-          userPosition.longitude,
-          evento.geolocalizacion.latitude,
-          evento.geolocalizacion.longitude,
-        ) / 1000; // Convertir a kilómetros
-        
+        double distance =
+            Geolocator.distanceBetween(
+              userPosition.latitude,
+              userPosition.longitude,
+              evento.geolocalizacion.latitude,
+              evento.geolocalizacion.longitude,
+            ) /
+            1000; // Convertir a kilómetros
+
         // Calcular Q_i (calificación del usuario para este evento)
-        double itemCharge = await calculateItemCharge(evento.id, userId, 'evento');
-        
+        double itemCharge = await calculateItemCharge(
+          evento.id,
+          userId,
+          'evento',
+        );
+
         // Calcular Q_u (peso de preferencia del usuario para esta categoría)
         double userCharge = await calculateUserCharge(userId, evento.categoria);
-        
+
         // Verificar si es atractivo para el usuario
         bool isAttractive = await isAttractiveTo(evento.id, userId, 'evento');
-        
+
         // Calcular fuerza electromagnética
         double force = calculateElectromagneticForce(
           Qi: itemCharge,
           Qu: userCharge,
           distance: distance,
         );
-        
+
         recommendations.add({
           'item': evento,
           'type': 'evento',
@@ -228,35 +260,41 @@ class RecommendationService {
           'isAttractive': isAttractive,
         });
       }
-      
+
       // Procesar lugares
       for (var doc in lugares.docs) {
         Lugar lugar = Lugar.fromFirestore(doc);
-        
+
         // Calcular distancia
-        double distance = Geolocator.distanceBetween(
-          userPosition.latitude,
-          userPosition.longitude,
-          lugar.geolocalizacion.latitude,
-          lugar.geolocalizacion.longitude,
-        ) / 1000; // Convertir a kilómetros
-        
+        double distance =
+            Geolocator.distanceBetween(
+              userPosition.latitude,
+              userPosition.longitude,
+              lugar.geolocalizacion.latitude,
+              lugar.geolocalizacion.longitude,
+            ) /
+            1000; // Convertir a kilómetros
+
         // Calcular Q_i (calificación del usuario para este lugar)
-        double itemCharge = await calculateItemCharge(lugar.id, userId, 'lugar');
-        
+        double itemCharge = await calculateItemCharge(
+          lugar.id,
+          userId,
+          'lugar',
+        );
+
         // Calcular Q_u (peso de preferencia del usuario para esta categoría)
         double userCharge = await calculateUserCharge(userId, lugar.categoria);
-        
+
         // Verificar si es atractivo para el usuario
         bool isAttractive = await isAttractiveTo(lugar.id, userId, 'lugar');
-        
+
         // Calcular fuerza electromagnética
         double force = calculateElectromagneticForce(
           Qi: itemCharge,
           Qu: userCharge,
           distance: distance,
         );
-        
+
         recommendations.add({
           'item': lugar,
           'type': 'lugar',
@@ -267,13 +305,12 @@ class RecommendationService {
           'isAttractive': isAttractive,
         });
       }
-      
+
       // Ordenar por fuerza electromagnética (mayor fuerza = mejor recomendación)
       recommendations.sort((a, b) => b['force'].compareTo(a['force']));
-      
+
       // Limitar resultados
       return recommendations.take(limit).toList();
-      
     } catch (e) {
       print('Error obteniendo recomendaciones: $e');
       return [];

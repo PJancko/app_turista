@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/recommendation_service.dart';
 import 'dart:async';
+import '../models/models.dart';
 
 class MapScreen extends StatefulWidget {
   final Position? currentPosition;
@@ -68,33 +69,42 @@ class _MapScreenState extends State<MapScreen> {
 
       // Procesar cada recomendación
       for (var recommendation in recommendations) {
-        bool isAttractive = recommendation['isAttractive'] ?? false;
-        double force = recommendation['force'] ?? 1.0;
-        dynamic item = recommendation['item'];
+        final isAttractive = recommendation['isAttractive'] ?? false;
+        final force = recommendation['force'] ?? 1.0;
         String type = recommendation['type'];
+        dynamic item;
 
-        LatLng position = LatLng(
+        if (type == 'evento') {
+          item = Evento.fromMap(recommendation['item']);
+        } else {
+          item = Lugar.fromMap(recommendation['item']);
+        }
+
+        if (item?.geolocalizacion == null || item?.nombre == null) continue;
+
+        final LatLng position = LatLng(
           item.geolocalizacion.latitude,
           item.geolocalizacion.longitude,
         );
-
         // Crear marcador con estilo basado en atractivo
-        BitmapDescriptor markerIcon = await _createCustomMarker(
+        final BitmapDescriptor markerIcon = await _createCustomMarker(
           type: type,
           isAttractive: isAttractive,
           force: force,
         );
+
+        final String itemDescripcion = item.descripcion ?? '';
 
         markers.add(
           Marker(
             markerId: MarkerId('${type}_${item.id}'),
             position: position,
             infoWindow: InfoWindow(
-              title: item.nombre,
+              title: item.nombre ?? 'Sin nombre',
               snippet:
                   isAttractive
-                      ? '¡Te puede gustar! • ${item.descripcion}'
-                      : item.descripcion ?? '',
+                      ? '¡Te puede gustar! • $itemDescripcion'
+                      : itemDescripcion,
             ),
             icon: markerIcon,
             onTap: () => _showItemDetails(item, type, recommendation),
@@ -117,8 +127,9 @@ class _MapScreenState extends State<MapScreen> {
         );
 
         _circleRadii[circleId] = 80; // Valor inicial
+
         print(
-          'Item recomendado: ${item.nombre} - Atractivo: $isAttractive - Tipo: $type',
+          'Item recomendado: ${item.nombre ?? 'Desconocido'} - Atractivo: $isAttractive - Tipo: $type',
         );
       }
       // Agregar marcador de ubicación actual
@@ -253,7 +264,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  // Mostrar detalles del lugar/evento
   void _showItemDetails(
     dynamic item,
     String type,
@@ -277,7 +287,7 @@ class _MapScreenState extends State<MapScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        item.nombre,
+                        item?.nombre ?? 'Sin nombre',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -307,20 +317,26 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  item.descripcion ?? 'Sin descripción',
+                  item?.descripcion ?? 'Sin descripción',
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                if (type == 'evento')
-                  Text('Fecha: ${item.fecha.toString().split(' ')[0]}'),
+                if (type == 'evento' && item?.fecha != null)
+                  Text(
+                    'Fecha: ${item.fecha.toString().split(' ')[0]}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 if (type == 'lugar')
-                  Text('Horario: ${item.horario ?? 'No especificado'}'),
+                  Text(
+                    'Horario: ${item?.horario ?? 'No especificado'}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Icon(Icons.flash_on, size: 16, color: Colors.blue[700]),
                     Text(
-                      ' Fuerza: ${recommendation['force'].toStringAsFixed(2)}',
+                      ' Fuerza: ${(recommendation['force'] ?? 0.0).toStringAsFixed(2)}',
                       style: TextStyle(
                         color: Colors.blue[700],
                         fontWeight: FontWeight.w600,
@@ -329,7 +345,7 @@ class _MapScreenState extends State<MapScreen> {
                     const SizedBox(width: 16),
                     Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
                     Text(
-                      ' ${recommendation['distance'].toStringAsFixed(1)} km',
+                      ' ${(recommendation['distance'] ?? 0.0).toStringAsFixed(1)} km',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],

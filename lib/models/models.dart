@@ -4,37 +4,44 @@ class Evento {
   final String id;
   final String nombre;
   final String descripcion;
-  final String categoria;
   final DateTime fecha;
   final GeoPoint geolocalizacion;
-  final String ubicacion;
-  final String estado;
-  final String creadoPor;
+  final String categoria;
 
   Evento({
     required this.id,
     required this.nombre,
     required this.descripcion,
-    required this.categoria,
     required this.fecha,
     required this.geolocalizacion,
-    required this.ubicacion,
-    required this.estado,
-    required this.creadoPor,
+    required this.categoria,
   });
 
+  // Ya existente
   factory Evento.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>;
     return Evento(
       id: doc.id,
       nombre: data['nombre'] ?? '',
       descripcion: data['descripcion'] ?? '',
-      categoria: data['categoria'] ?? '',
       fecha: (data['fecha'] as Timestamp).toDate(),
-      geolocalizacion: data['geolocalizacion'] as GeoPoint,
-      ubicacion: data['ubicacion'] ?? '',
-      estado: data['estado'] ?? 'activo',
-      creadoPor: data['creadoPor'] ?? '',
+      geolocalizacion: data['geolocalizacion'],
+      categoria: data['categoria'] ?? '',
+    );
+  }
+
+  // 🔥 Nuevo método
+  factory Evento.fromMap(Map<String, dynamic> data) {
+    return Evento(
+      id: data['id'] ?? '',
+      nombre: data['nombre'] ?? '',
+      descripcion: data['descripcion'] ?? '',
+      fecha:
+          data['fecha'] is Timestamp
+              ? (data['fecha'] as Timestamp).toDate()
+              : data['fecha'] as DateTime,
+      geolocalizacion: data['geolocalizacion'],
+      categoria: data['categoria'] ?? '',
     );
   }
 
@@ -43,12 +50,9 @@ class Evento {
       'id': id,
       'nombre': nombre,
       'descripcion': descripcion,
-      'categoria': categoria,
-      'fecha': fecha.toIso8601String(),
+      'fecha': fecha,
       'geolocalizacion': geolocalizacion,
-      'ubicacion': ubicacion,
-      'estado': estado,
-      'creadoPor': creadoPor,
+      'categoria': categoria,
     };
   }
 }
@@ -57,31 +61,40 @@ class Lugar {
   final String id;
   final String nombre;
   final String descripcion;
-  final String categoria;
-  final GeoPoint geolocalizacion;
   final String horario;
-  final String creadoPor;
+  final GeoPoint geolocalizacion;
+  final String categoria;
 
   Lugar({
     required this.id,
     required this.nombre,
     required this.descripcion,
-    required this.categoria,
-    required this.geolocalizacion,
     required this.horario,
-    required this.creadoPor,
+    required this.geolocalizacion,
+    required this.categoria,
   });
 
   factory Lugar.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>;
     return Lugar(
       id: doc.id,
       nombre: data['nombre'] ?? '',
       descripcion: data['descripcion'] ?? '',
-      categoria: data['categoria'] ?? '',
-      geolocalizacion: data['geolocalizacion'] as GeoPoint,
       horario: data['horario'] ?? '',
-      creadoPor: data['creadoPor'] ?? '',
+      geolocalizacion: data['geolocalizacion'],
+      categoria: data['categoria'] ?? '',
+    );
+  }
+
+  // 🔥 Nuevo método
+  factory Lugar.fromMap(Map<String, dynamic> data) {
+    return Lugar(
+      id: data['id'] ?? '',
+      nombre: data['nombre'] ?? '',
+      descripcion: data['descripcion'] ?? '',
+      horario: data['horario'] ?? '',
+      geolocalizacion: data['geolocalizacion'],
+      categoria: data['categoria'] ?? '',
     );
   }
 
@@ -90,10 +103,9 @@ class Lugar {
       'id': id,
       'nombre': nombre,
       'descripcion': descripcion,
-      'categoria': categoria,
-      'geolocalizacion': geolocalizacion,
       'horario': horario,
-      'creadoPor': creadoPor,
+      'geolocalizacion': geolocalizacion,
+      'categoria': categoria,
     };
   }
 }

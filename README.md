@@ -1,35 +1,22 @@
-/lib
- ┣ main.dart                   ← Punto de entrada
- ┣ /screens                    ← Todas las pantallas principales (UI completas)
- ┃ ┣ login_screen.dart
- ┃ ┣ home_screen.dart
- ┃ ┣ map_screen.dart
- ┃ ┣ eventos_tab.dart
- ┃ ┣ lugares_tab.dart
- ┃ ┗ favoritos_tab.dart
- ┣ /widgets                    ← Componentes reutilizables (footer, cards, botones, etc.)
- ┃ ┣ app_footer.dart
- ┃ ┣ evento_card.dart
- ┃ ┣ lugar_card.dart
- ┣ /services                   ← Comunicación con Firebase, API, geolocalización, etc.
- ┃ ┣ auth_service.dart
- ┃ ┣ firestore_service.dart
- ┃ ┗ location_service.dart
- ┣ /models                     ← Clases de datos: Evento, Lugar, Usuario, etc.
- ┃ ┣ evento.dart
- ┃ ┣ lugar.dart
- ┃ ┣ usuario.dart
- ┣ /utils                      ← Funciones de utilidad y lógica de recomendación
- ┃ ┣ recomendador.dart
- ┣ /themes                     ← Colores, estilos, tipografías
- ┃ ┣ app_colors.dart
- ┃ ┣ app_text_styles.dart
- ┣ /config                     ← Configuración global, rutas, constantes
- ┃ ┣ app_routes.dart
- ┃ ┗ constants.dart
+Instalación y Ejecución
+Sigue estos pasos para clonar, instalar dependencias y ejecutar la aplicación localmente en tu dispositivo o emulador:
 
+1. Clonar el repositorio
+git clone https://github.com/tu-usuario/tu-repo.git
+cd tu-repo
 
+2. Instalar dependencias
+flutter pub get
 
-## Comandos basicos por si se me olvida 
-flutter run 
-flutter pub get 
+3. Configurar Firebase
+Crea un proyecto en Firebase Console.
+Activa Authentication con Email/Password.
+Crea una base de datos Firestore con las siguientes colecciones:
+usuarios, eventos, lugares, calificaciones, calificaciones_lugares.
+Descarga el archivo google-services.json desde Firebase.
+Colócalo en:
+android/app/google-services.json
+
+4. Ejecutar la app
+Conecta un emulador o un dispositivo físico y ejecuta:
+flutter run

@@ -4,7 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final VoidCallback? onLoginSuccess;
+  const LoginScreen({super.key, this.onLoginSuccess});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -49,7 +50,13 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Bienvenido $nombre ($rol)')));
-      // TODO: Redirigir a otra pantalla según rol o guardar sesión
+
+      // Llama al callback para actualizar la interfaz principal
+      if (widget.onLoginSuccess != null) {
+        widget.onLoginSuccess!();
+      }
+
+      // (Opcional) Puedes limpiar los campos o navegar si lo deseas
     } on FirebaseAuthException catch (e) {
       setState(() {
         _error = e.message ?? 'Ocurrió un error inesperado.';

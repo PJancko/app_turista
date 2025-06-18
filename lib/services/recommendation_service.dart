@@ -6,56 +6,56 @@ import 'package:geolocator/geolocator.dart';
 class RecommendationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Future<List<Map<String, dynamic>>> searchItems(String query) async {
-  if (query.trim().isEmpty) return [];
-  
-  try {
-    final String searchQuery = query.toLowerCase().trim();
-    final List<Map<String, dynamic>> resultados = [];
+    if (query.trim().isEmpty) return [];
 
-    // Buscar en eventos
-    final eventosSnapshot = await _firestore.collection('eventos').get();
-    for (var doc in eventosSnapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final nombre = (data['nombre'] ?? '').toString().toLowerCase();
-      
-      if (nombre.contains(searchQuery)) {
-        resultados.add({
-          'type': 'evento',
-          'item': data, // <-- Esto es un Map, no un objeto con propiedades
-          'id': doc.id,
-          'force': 1.0, // Valor por defecto
-          'distance': 0.0, // Valor por defecto
-          'isAttractive': false, // Valor por defecto
-          'itemCharge': 1.0, // Valor por defecto
-        });
+    try {
+      final String searchQuery = query.toLowerCase().trim();
+      final List<Map<String, dynamic>> resultados = [];
+
+      // Buscar en eventos
+      final eventosSnapshot = await _firestore.collection('eventos').get();
+      for (var doc in eventosSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final nombre = (data['nombre'] ?? '').toString().toLowerCase();
+
+        if (nombre.contains(searchQuery)) {
+          resultados.add({
+            'type': 'evento',
+            'item': data, // <-- Esto es un Map, no un objeto con propiedades
+            'id': doc.id,
+            'force': 1.0, // Valor por defecto
+            'distance': 0.0, // Valor por defecto
+            'isAttractive': false, // Valor por defecto
+            'itemCharge': 1.0, // Valor por defecto
+          });
+        }
       }
-    }
 
-    // Buscar en lugares (similar a eventos)
-    final lugaresSnapshot = await _firestore.collection('lugares').get();
-    for (var doc in lugaresSnapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final nombre = (data['nombre'] ?? '').toString().toLowerCase();
-      
-      if (nombre.contains(searchQuery)) {
-        resultados.add({
-          'type': 'lugar',
-          'item': data,
-          'id': doc.id,
-          'force': 1.0,
-          'distance': 0.0,
-          'isAttractive': false,
-          'itemCharge': 1.0,
-        });
+      // Buscar en lugares (similar a eventos)
+      final lugaresSnapshot = await _firestore.collection('lugares').get();
+      for (var doc in lugaresSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final nombre = (data['nombre'] ?? '').toString().toLowerCase();
+
+        if (nombre.contains(searchQuery)) {
+          resultados.add({
+            'type': 'lugar',
+            'item': data,
+            'id': doc.id,
+            'force': 1.0,
+            'distance': 0.0,
+            'isAttractive': false,
+            'itemCharge': 1.0,
+          });
+        }
       }
-    }
 
-    return resultados;
-  } catch (e) {
-    print('Error buscando items: $e');
-    return [];
+      return resultados;
+    } catch (e) {
+      print('Error buscando items: $e');
+      return [];
+    }
   }
-}
 
   // Constante k para la fórmula electromagnética
   static const double k = 1.0;
@@ -302,7 +302,7 @@ class RecommendationService {
         );
 
         recommendations.add({
-          'item': evento,
+          'item': evento.toMap(),
           'type': 'evento',
           'force': force,
           'distance': distance,
@@ -347,7 +347,7 @@ class RecommendationService {
         );
 
         recommendations.add({
-          'item': lugar,
+          'item': lugar.toMap(),
           'type': 'lugar',
           'force': force,
           'distance': distance,

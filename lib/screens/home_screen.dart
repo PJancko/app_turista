@@ -136,6 +136,10 @@ class _HomeLayoutState extends State<HomeLayout>
           _userRole = doc['rol'] ?? 'usuario';
         });
       }
+    } else {
+      setState(() {
+        _userRole = null; // o 'usuario', según tu lógica
+      });
     }
   }
 
@@ -187,12 +191,18 @@ class _HomeLayoutState extends State<HomeLayout>
           userId: user.uid,
           userPosition: _currentPosition!,
         );
-
         setState(() {
           _eventosRecomendados =
-              recommendations.where((r) => r['type'] == 'evento').toList();
+              recommendations
+                  .where((r) => r['type'] == 'evento')
+                  .map((r) => _normalizarRecommendation(r))
+                  .toList();
+
           _lugaresRecomendados =
-              recommendations.where((r) => r['type'] == 'lugar').toList();
+              recommendations
+                  .where((r) => r['type'] == 'lugar')
+                  .map((r) => _normalizarRecommendation(r))
+                  .toList();
         });
       }
     } catch (e) {
@@ -268,27 +278,41 @@ class _HomeLayoutState extends State<HomeLayout>
   }
 
   Map<String, dynamic> _normalizarRecommendation(Map<String, dynamic> r) {
-    final item = r['item'];
+    final dynamic item = r['item'];
 
-    if (item is Map && item.containsKey('nombre')) {
-      return r;
+    Map<String, dynamic> normalizado;
+
+    if (item is Map<String, dynamic>) {
+      // Ya es un mapa, usar directamente
+      normalizado = item;
+    } else {
+      // Es un objeto (clase personalizada), intentar acceder con getters
+      try {
+        normalizado = {
+          'id': item.id,
+          'nombre': item.nombre,
+          'descripcion': item.descripcion,
+          'fecha': item.fecha,
+          'horario': item.horario,
+          // agrega más campos si necesitas
+        };
+      } catch (e) {
+        // Fallback si algo sale mal
+        normalizado = {
+          'nombre': '[Sin nombre]',
+          'descripcion': '[Sin descripción]',
+        };
+      }
     }
-
-    // Caso de emergencia: si item es un String o no tiene 'nombre'
-    return {
-      ...r,
-      'item': {
-        'nombre': '[Sin nombre]',
-        // Agrega más campos si quieres
-      },
-    };
+    return {...r, 'item': normalizado};
   }
 
   Widget _buildRecommendationCard(Map<String, dynamic> recommendation) {
+    final dynamic item = recommendation['item'];
     final nombre =
-        (recommendation['item'] is Map)
-            ? recommendation['item']['nombre']
-            : recommendation['item']?.nombre;
+        (item is Map && item.containsKey('nombre'))
+            ? item['nombre']
+            : '[Sin nombre]';
     final double force = recommendation['force'];
     final bool isAttractive = recommendation['isAttractive'] ?? false;
     final double itemCharge = recommendation['itemCharge'] ?? 1.0;
@@ -519,7 +543,7 @@ class _HomeLayoutState extends State<HomeLayout>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.nombre,
+                          item['nombre'] ?? 'Sin nombre',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -528,7 +552,7 @@ class _HomeLayoutState extends State<HomeLayout>
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          item.descripcion,
+                          item['descripcion'] ?? 'Sin descripción',
                           style: TextStyle(fontSize: 15, color: _textColor),
                         ),
                         const SizedBox(height: 12),
@@ -542,7 +566,7 @@ class _HomeLayoutState extends State<HomeLayout>
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Fecha: ${item.fecha.toString().split(' ')[0]}',
+                                'Fecha: ${item['fecha']?.toString().split(' ')[0] ?? 'Sin fecha'}',
                                 style: TextStyle(color: _textColor),
                               ),
                             ],
@@ -557,7 +581,7 @@ class _HomeLayoutState extends State<HomeLayout>
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Horario: ${item.horario}',
+                                'Horario: ${item['horario'] ?? 'Sin horario'}',
                                 style: TextStyle(color: _textColor),
                               ),
                             ],
@@ -609,12 +633,11 @@ class _HomeLayoutState extends State<HomeLayout>
                             const SizedBox(width: 8),
                             ElevatedButton(
                               onPressed: () async {
-                                // Guardar calificación en Firestore
                                 final user = FirebaseAuth.instance.currentUser;
                                 if (user != null) {
                                   final calificacionData = {
                                     'userID': user.uid,
-                                    'lugarID': item.id,
+                                    'lugarID': item['id'] ?? 'sin_id',
                                     'estrellas': _rating.toInt(),
                                     'fecha': Timestamp.now(),
                                   };
@@ -770,7 +793,15 @@ class _HomeLayoutState extends State<HomeLayout>
           ],
         );
       case 2:
-        return isLoggedIn ? _buildPerfilScreen() : const LoginScreen();
+        return isLoggedIn
+            ? _buildPerfilScreen()
+            : LoginScreen(
+              onLoginSuccess: () async {
+                await _loadUserRole();
+                await _loadRecommendations();
+                setState(() {});
+              },
+            );
       case 3:
         return const AdminScreen();
       default:
@@ -838,6 +869,8 @@ class _HomeLayoutState extends State<HomeLayout>
               child: ElevatedButton.icon(
                 onPressed: () async {
                   await FirebaseAuth.instance.signOut();
+                  await _loadUserRole();
+                  await _loadRecommendations();
                   setState(() {
                     _bottomIndex = 0;
                   });

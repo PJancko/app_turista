@@ -37,6 +37,20 @@ class Evento {
       creadoPor: data['creadoPor'] ?? '',
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'categoria': categoria,
+      'fecha': fecha.toIso8601String(),
+      'geolocalizacion': geolocalizacion,
+      'ubicacion': ubicacion,
+      'estado': estado,
+      'creadoPor': creadoPor,
+    };
+  }
 }
 
 class Lugar {
@@ -69,6 +83,18 @@ class Lugar {
       horario: data['horario'] ?? '',
       creadoPor: data['creadoPor'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'categoria': categoria,
+      'geolocalizacion': geolocalizacion,
+      'horario': horario,
+      'creadoPor': creadoPor,
+    };
   }
 }
 
